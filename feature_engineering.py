@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+import os
+import shutil
 
 from scipy import ndimage
 
@@ -16,13 +18,72 @@ import time
 import cv2
 
 #######################################
-
 #convert a folder of images into a target folder
+def get_img_array(img, channel_name):
+	# for GBR Rrepresented images and respective chanels
+	if channel_name == "red":
+		return img[:, :, 2]
+	if channel_name == "blue":
+		return img[:, :, 1]
+	if channel_name == "green":
+		return img[:, :, 0]
+	
+	#converting GBR images to HSV to get their respective channels
+	hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	if channel_name  == "hue":
+		return hsv_img[:, :, 0]
+	if channel_name  == "saturation":
+		return hsv_img[:, :, 1]
+	if channel_name  == "value":
+		return hsv_img[:, :, 2]
+	
+	return img[:, :, 2]
+def convert_images(input_image_folder, output_image_folder, input_image_type, output_image_type, output_channels):
+	#remove the output folder if it exists and create a new one
+	if os.path.exists(output_image_folder):
+		shutil.rmtree(output_image_folder)
+	os.mkdir(output_image_folder)
+	
+	#traverse through each image in the input image folder
+	for img_file in os.listdir(input_image_folder):
+
+		image_path = os.path.join(input_image_folder, img_file)
+		image = cv2.imread(image_path)
+
+		#for every channel feature calcualtion will be added to this list
+		channels = []
+		for channel in output_channels:
+			channel_wrapper = 'normal'
+			if ":" in channel:
+				channel_name, feature_name = channel.split(":")
+
+				if channel_name == 'red' : channel_wrapper = 'r1'
+				feature_img = process_channel(get_img_array(image, channel_name), channel_wrapper, disk(10), disk(20))
+				channels.append(feature_img)
+			else:
+				if channel == 'red' : channel_wrapper = 'r1'
+				feature_img = process_channel(get_img_array(image, channel), channel_wrapper, disk(10), disk(20))
+				channels.append(feature_img)
+		
+		#get the input image file name without the extension 
+		input_file_name = os.path.splitext(img_file)[0]
+		i = 0
+		for img_channels in channels:
+			#use f string to name the output file correctly with respect to its channel
+			output_name = f"{input_file_name}_{i:04}.{output_image_type}"
+			output_pth = os.path.join(output_image_folder, output_name)
+			cv2.imwrite(output_pth, img_channels)
+			i += 1
+
+#-----------
 NUM_CHANNELS = 9
 
 
 def imshow(im):
 	#cv2.imwrite("img.png", im)
+	im = im[:, :, 0] * 3
+	im = np.array(im, dtype=np.uint8)
+	cv2.imwrite("AM195_Left_NsNn_V1_Section0001_Probe0001_001.tif", im)
 	plt.imshow(im)
 	plt.show()
 
@@ -75,6 +136,15 @@ def process_channel(im, bil_mode, bil_footprint, mdl_footprint):
 
 
 def main():
+	#testing converted_images function
+	input_image_folder= 'input_image_files_GD'
+	output_image_folder = 'output_imag_files_GD'
+	input_image_type = 'tif'
+	output_image_type = 'tif'
+	output_channels = ['red', 'green', 'blue', 'hue', 'saturation', 'value', 'red:feature1']
+	convert_images(input_image_folder, output_image_folder, input_image_type, output_image_type, output_channels)
+
+
 	img_rgb = cv2.imread('AM195_Left_NsNn_V1_Section0001_Probe0001_001.tif')
 
 	imshow(img_rgb)
